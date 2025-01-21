@@ -65,12 +65,28 @@ async function run() {
       res.send({ token });
     });
 
-    // Get All Users
-    app.get('/users',  async (req, res) => {
-      const users = await userCollection.find().toArray();
-      res.send(users);
-    });
+    // // Get All Users
+    // app.get('/users',  async (req, res) => {
+    //   const users = await userCollection.find().toArray();
+    //   res.send(users);
+    // });
 
+    app.get('/users', async (req, res) => {
+      try {
+        const { bloodGroup, district, upazila } = req.query;
+        const query = {};
+        if (bloodGroup) query.bloodGroup = bloodGroup;
+        if (district) query.district = district;
+        if (upazila) query.upazila = upazila;
+        
+        const users = await userCollection.find(query).toArray();
+        res.send(users);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+    
     // Check Admin Status
     app.get('/users/admin/:email', verifyToken,  async(req, res) =>{
       const email = req.params.email;
@@ -295,6 +311,25 @@ app.get('/create-donation-request/:id', async (req, res) => {
       const blogs = await blogsCollection.find().toArray();
       res.send(blogs);
     });
+
+    app.get('/blogs/:id', async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const blogDetails = await blogsCollection.findOne(query);
+    
+        if (!blogDetails) {
+          return res.status(404).send({ message: 'Blog not found' });
+        }
+    
+        res.send(blogDetails);
+      } catch (error) {
+        console.error('Error fetching blog:', error);
+        res.status(500).send({ message: 'Internal server error' });
+      }
+    });
+    
+
     app.post('/blogs',  async(req, res) =>{
       const newBlogs = req.body;
       const result = await blogsCollection.insertOne(newBlogs)
@@ -390,6 +425,31 @@ app.patch('/users/status/:id', async (req, res) => {
   }
 });
 
+app.patch("/users/:email", async (req, res) => {
+  const { email } = req.params;
+  let updatedProfile = req.body;
+  
+  // Remove the '_id' field if it exists
+  const { _id, ...profileData } = updatedProfile;  // This excludes _id
+
+  const result = await userCollection.updateOne(
+    { email },
+    { $set: profileData }
+  );
+
+  res.send(result);
+});
+
+
+app.get('/users/:email', async (req, res) => {
+  const { email } = req.params;  // Get the email from the URL parameter
+  const user = await userCollection.findOne({ email });  // Find the user by email
+  if (user) {
+    res.send(user);  // If user found, send the user data
+  } else {
+    res.status(404).send({ message: 'User not found' });  // If user not found, send 404 error
+  }
+});
 
 
 
