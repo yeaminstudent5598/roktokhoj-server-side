@@ -48,6 +48,14 @@ const verifyAdmin = async (req, res, next) => {
   }
   next();
 };
+const verifyVolunteer = async (req, res, next) => {
+  const email = req.decoded.email;
+  const user = await client.db('roktoDB').collection('users').findOne({ email });
+  if (!user || user.role !== 'volunteer') {
+    return res.status(403).send({ message: 'Forbidden access' });
+  }
+  next();
+};
 
 // API Routes
 async function run() {
@@ -57,6 +65,7 @@ async function run() {
     const creatCollection = client.db('roktoDB').collection('create-donation-request')
  
     const blogsCollection = client.db('roktoDB').collection('blogs')
+    const createPaymentCollection = client.db('roktoDB').collection('create-payment-intent')
 
     // JWT Route
     app.post('/jwt', (req, res) => {
@@ -71,7 +80,37 @@ async function run() {
     //   res.send(users);
     // });
 
-    app.get('/users', async (req, res) => {
+    app.get('/users',verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const { bloodGroup, district, upazila } = req.query;
+        const query = {};
+        if (bloodGroup) query.bloodGroup = bloodGroup;
+        if (district) query.district = district;
+        if (upazila) query.upazila = upazila;
+        
+        const users = await userCollection.find(query).toArray();
+        res.send(users);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+    app.get('/users/normal',verifyToken, async (req, res) => {
+      try {
+        const { bloodGroup, district, upazila } = req.query;
+        const query = {};
+        if (bloodGroup) query.bloodGroup = bloodGroup;
+        if (district) query.district = district;
+        if (upazila) query.upazila = upazila;
+        
+        const users = await userCollection.find(query).toArray();
+        res.send(users);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+    app.get('/users/volunteer',verifyToken,verifyVolunteer, async (req, res) => {
       try {
         const { bloodGroup, district, upazila } = req.query;
         const query = {};
@@ -88,7 +127,7 @@ async function run() {
     });
     
     // Check Admin Status
-    app.get('/users/admin/:email', verifyToken,  async(req, res) =>{
+    app.get('/users/admin/:email', verifyToken, verifyAdmin,   async(req, res) =>{
       const email = req.params.email;
       if (email !== req.decoded.email) {
         return res.status(403).send({message: 'unauthorize access'})
@@ -122,6 +161,10 @@ async function run() {
       const users = await creatCollection.find().toArray();
       res.send(users);
     });
+    app.get('/create-donation-request', verifyToken, verifyVolunteer, async (req, res) => {
+      const users = await creatCollection.find().toArray();
+      res.send(users);
+    });
     
     app.get('/donation-request/:email', async (req, res) => {
       const { email } = req.params;
@@ -147,7 +190,7 @@ async function run() {
     });
 
     //delete api create request 
-    app.delete('/create-donation-request/:id', async (req, res) => {
+    app.delete('/create-donation-request/:id',verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await creatCollection.deleteOne(query);
@@ -155,7 +198,7 @@ async function run() {
     });
 
     // PATCH API for updating donation request by ID
-    app.patch('/create-donation-request/:id', async (req, res) => {
+    app.patch('/create-donation-request/:id',verifyToken, async (req, res) => {
       const id = req.params.id; // Extract ID from URL parameters
       const updateData = req.body; // Get the fields to update from request body
     
@@ -198,7 +241,7 @@ async function run() {
 
 
     // PATCH API to update blood donation request status by ID
-app.patch('/blood-donation-requests/status/:id', async (req, res) => {
+app.patch('/blood-donation-requests/status/:id',verifyToken, async (req, res) => {
   const id = req.params.id; // Extract ID from the request URL
   const { status, donorName, donorEmail } = req.body; // Extract fields from request body
 
@@ -246,7 +289,7 @@ app.patch('/blood-donation-requests/status/:id', async (req, res) => {
     
     
     // Promote User to Admin
-    app.patch('/users/admin/:id',  async (req, res) => {
+    app.patch('/users/admin/:id',verifyToken, verifyAdmin,  async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updatedDoc = { $set: { role: 'admin' } };
@@ -254,7 +297,7 @@ app.patch('/blood-donation-requests/status/:id', async (req, res) => {
       res.send(result);
     });
     // Promote User to volunteer
-    app.patch('/users/volunteer/:id',  async (req, res) => {
+    app.patch('/users/volunteer/:id',verifyToken, verifyVolunteer,  async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updatedDoc =  { $set: { role: 'volunteer' } };
@@ -337,7 +380,7 @@ app.get('/create-donation-request/:id', async (req, res) => {
     });
 
     // PATCH API to update blog status by ID
-app.patch('/blogs/status/:id', async (req, res) => {
+app.patch('/blogs/status/:id',verifyToken, verifyAdmin, async (req, res) => {
   const blogId = req.params.id; // Get the blog ID from the URL parameters
   const { status } = req.body; // Get the status value from the request body
 
@@ -369,7 +412,7 @@ app.patch('/blogs/status/:id', async (req, res) => {
 });
 
 
-app.delete('/blogs/:id', async(req, res) => {
+app.delete('/blogs/:id',verifyToken,verifyAdmin, async(req, res) => {
   const id = req.params.id;
   const query = {_id: new ObjectId(id)}
   const result = await blogsCollection.deleteOne(query);
@@ -377,9 +420,51 @@ app.delete('/blogs/:id', async(req, res) => {
 })
 
 
+const stripe = require('stripe')(process.env.PAYMENT_METHON_SECRET_KEY);
+
+app.post("/create-payment-intent", async (req, res) => {
+  const { amount, user } = req.body;
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount, 
+      currency: "usd", 
+      metadata: { user }, 
+      
+    });
     
+    res.send({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+  
+    res.status(500).send("Failed to create payment intent");
+  }
+});
+
+
+
+// Save Payment Intent Endpoint
+app.post("/save-payment-intent", async (req, res) => {
+  const { amount, customer, avatar, date } = req.body;
+
+  
+    // Insert the record into the database
+    const result = await createPaymentCollection.insertOne({
+      amount,
+      customer,
+      avatar,
+      date: new Date().toISOString(),
+    });
+
+    return res.status(200).send(result);
+  })
+
+  app.get('/create-payment-intent',  async (req, res) => {
+    const payments = await createPaymentCollection.find().toArray();
+    res.send(payments);
+  });
+
+
     
-    app.patch('/donation-details/:id', async(req, res) =>{
+    app.patch('/donation-details/:id',verifyToken, async(req, res) =>{
       const userId = req.params.id;
   const { status, donorName, donorEmail } = req.body; // Get status from request body
   
@@ -404,7 +489,7 @@ app.delete('/blogs/:id', async(req, res) => {
 
     
 // Block or Unblock User
-app.patch('/users/status/:id', async (req, res) => {
+app.patch('/users/status/:id',verifyToken, verifyAdmin, async (req, res) => {
   const userId = req.params.id;
   const { status } = req.body; // Get status from request body
   
@@ -425,7 +510,7 @@ app.patch('/users/status/:id', async (req, res) => {
   }
 });
 
-app.patch("/users/:email", async (req, res) => {
+app.patch("/users/:email",verifyToken, async (req, res) => {
   const { email } = req.params;
   let updatedProfile = req.body;
   
@@ -453,7 +538,7 @@ app.get('/users/:email', async (req, res) => {
 
 
 
-    app.delete('/users/:id', async(req, res) => {
+    app.delete('/users/:id',verifyToken, async(req, res) => {
       const id = req.params.id;
       const query = {_id: new ObjectId(id)}
       const result = await userCollection.deleteOne(query);
