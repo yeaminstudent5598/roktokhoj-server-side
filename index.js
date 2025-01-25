@@ -60,7 +60,7 @@ const verifyVolunteer = async (req, res, next) => {
 // API Routes
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const userCollection = client.db('roktoDB').collection('users');
     const creatCollection = client.db('roktoDB').collection('create-donation-request')
  
@@ -74,11 +74,7 @@ async function run() {
       res.send({ token });
     });
 
-    // // Get All Users
-    // app.get('/users',  async (req, res) => {
-    //   const users = await userCollection.find().toArray();
-    //   res.send(users);
-    // });
+   // Get All Users
 
     app.get('/users',verifyToken, verifyAdmin, async (req, res) => {
       try {
@@ -91,7 +87,6 @@ async function run() {
         const users = await userCollection.find(query).toArray();
         res.send(users);
       } catch (error) {
-        console.error("Error fetching users:", error);
         res.status(500).send({ message: "Internal server error" });
       }
     });
@@ -106,7 +101,6 @@ async function run() {
         const users = await userCollection.find(query).toArray();
         res.send(users);
       } catch (error) {
-        console.error("Error fetching users:", error);
         res.status(500).send({ message: "Internal server error" });
       }
     });
@@ -121,17 +115,14 @@ async function run() {
         const users = await userCollection.find(query).toArray();
         res.send(users);
       } catch (error) {
-        console.error("Error fetching users:", error);
         res.status(500).send({ message: "Internal server error" });
       }
     });
     
     // Check Admin Status
-    app.get('/users/admin/:email', verifyToken, verifyAdmin,   async(req, res) =>{
+    app.get('/users/admin/:email',   async(req, res) =>{
       const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({message: 'unauthorize access'})
-      }
+      
       const query = {email: email};
       const user = await userCollection.findOne(query)
       let admin = false;
@@ -141,19 +132,17 @@ async function run() {
       res.send({admin});
     })
     // Check valunteer Status
-    app.get('/users/valunteer/:email', verifyToken,  async(req, res) =>{
+    app.get('/users/valunteer/:email',   async(req, res) =>{
       const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({message: 'unauthorize access'})
-      }
+     
       const query = {email: email};
       const user = await userCollection.findOne(query)
-      console.log(user)
+   
       let valunteer = false;
       if (user) {
         valunteer = user?.role === 'volunteer'
       }
-      console.log('Valunteer:', valunteer);
+ 
       res.send({valunteer});
     })
 
@@ -184,7 +173,6 @@ async function run() {
           res.status(404).json({ message: 'User not found' });
         }
       } catch (error) {
-        console.error('Error:', error);
         res.status(500).json({ message: 'Internal Server Error' });
       }
     });
@@ -225,7 +213,6 @@ async function run() {
           result,
         });
       } catch (error) {
-        console.error('Error updating donation request:', error);
         res.status(500).send({
           success: false,
           message: 'Internal Server Error',
@@ -273,7 +260,6 @@ app.patch('/blood-donation-requests/status/:id',verifyToken, async (req, res) =>
       result,
     });
   } catch (error) {
-    console.error('Error updating donation request:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -332,7 +318,6 @@ app.get('/create-donation-request/:id', async (req, res) => {
 
     res.send(donationRequest);
   } catch (error) {
-    console.error('Error fetching donation request:', error);
     res.status(500).send({ message: 'Internal server error' });
   }
 });
@@ -367,7 +352,6 @@ app.get('/create-donation-request/:id', async (req, res) => {
     
         res.send(blogDetails);
       } catch (error) {
-        console.error('Error fetching blog:', error);
         res.status(500).send({ message: 'Internal server error' });
       }
     });
@@ -402,7 +386,6 @@ app.patch('/blogs/status/:id',verifyToken, verifyAdmin, async (req, res) => {
       message: `Blog status updated to ${status}`,
     });
   } catch (error) {
-    console.error('Error updating blog status:', error);
     res.status(500).send({
       success: false,
       message: 'Internal server error',
@@ -480,7 +463,7 @@ app.post("/save-payment-intent", async (req, res) => {
       res.status(404).json({ error: 'User not found or status not changed' });
     }
   } catch (error) {
-    console.error('Error updating user status:', error);
+    
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -505,7 +488,6 @@ app.patch('/users/status/:id',verifyToken, verifyAdmin, async (req, res) => {
       res.status(404).json({ error: 'User not found or status not changed' });
     }
   } catch (error) {
-    console.error('Error updating user status:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
