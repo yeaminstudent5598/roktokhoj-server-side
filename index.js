@@ -141,7 +141,7 @@ async function run() {
       let valunteer = false;
       if (user) {
         valunteer = user?.role === 'volunteer'
-      }
+      } 
  
       res.send({valunteer});
     })
