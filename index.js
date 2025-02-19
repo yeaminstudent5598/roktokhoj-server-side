@@ -77,7 +77,7 @@ async function run() {
    // Get All Users 
 
     app.get('/users',verifyToken, verifyAdmin, async (req, res) => {
-      try {
+      try { 
         const { bloodGroup, district, upazila } = req.query;
         const query = {};
         if (bloodGroup) query.bloodGroup = bloodGroup;
