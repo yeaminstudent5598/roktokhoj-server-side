@@ -74,7 +74,7 @@ async function run() {
       res.send({ token });
     }); 
 
-   // Get All Users
+   // Get All Users 
 
     app.get('/users',verifyToken, verifyAdmin, async (req, res) => {
       try {
